@@ -48,10 +48,10 @@ def main(config):
     # build optimizer, learning rate scheduler. delete every lines containing lr_scheduler for disabling scheduler
     poelyr_params = list(map(lambda x: x[1], list(filter(lambda named_params: 'poe' in named_params[0], model.named_parameters()))))
     others_params = list(map(lambda x: x[1], list(filter(lambda named_params: 'poe' not in named_params[0], model.named_parameters()))))
-    # optimizer = config.init_obj('optimizer', torch.optim, [{'params': others_params, 'lr': 1e-2}, {'params': poelyr_params, 'lr': 1e-1}])
+    optimizer = config.init_obj('optimizer', torch.optim, [{'params': others_params, 'lr': 1e-2}, {'params': poelyr_params, 'lr': 1e-1}])
     # optimizer = config.init_obj('optimizer', torch.optim, [{'params': others_params, 'lr': 1e-3}, {'params': poelyr_params, 'lr': 1e-1}])
     # optimizer = config.init_obj('optimizer', torch.optim, [{'params': others_params, 'lr': 1e-3}, {'params': poelyr_params, 'lr': 1e-2}])
-    optimizer = config.init_obj('optimizer', torch.optim, [{'params': others_params, 'lr': 1e-4}, {'params': poelyr_params, 'lr': 1e-2}])
+    # optimizer = config.init_obj('optimizer', torch.optim, [{'params': others_params, 'lr': 1e-4}, {'params': poelyr_params, 'lr': 1e-2}])
 
     lr_scheduler = config.init_obj('lr_scheduler', torch.optim.lr_scheduler, optimizer)
 
@@ -62,6 +62,23 @@ def main(config):
                       valid_data_loader=valid_data_loader,
                       lr_scheduler=lr_scheduler)
     trainer.train()
+
+    jointTwist = trainer.model.poe.getJointTwist()
+    M_se3 = trainer.model.poe.M_se3
+    train_x_gpu = data_loader.dataset.x.to(device)
+    train_output = trainer.model(train_x_gpu).cpu()
+    train_target = data_loader.dataset.y
+    jointAngle = trainer.model.getJointAngle(train_x_gpu).cpu()
+
+    with torch.no_grad():
+        np.savetxt('jointAngle.txt', jointAngle, delimiter=',')
+        np.savetxt('jointTwist.txt', jointTwist.cpu(), delimiter=',')
+        np.savetxt('M_se3.txt', M_se3.cpu(), delimiter=',')
+        np.savetxt('nominalTwist.txt', trainer.model.poe.nominalTwist.cpu(), delimiter=',')
+        np.savetxt('outputPose.txt', skew_se3(logSE3(train_output)), delimiter=',')
+        np.savetxt('targetPose.txt', skew_se3(logSE3(train_target)), delimiter=',')
+
+
 
 
 if __name__ == '__main__':
